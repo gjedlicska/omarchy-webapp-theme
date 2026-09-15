@@ -308,7 +308,13 @@ removes the need entirely. Consequences to preserve when editing:
      `content-pry`), `content-hgl-1` drives links and @mention slugs. Only the
      foreground and outline families are mapped; the `base-` / `surf-`
      backgrounds are left to the explicit pane rules, and `constants-white` /
-     `constants-black` are literals — never repoint them.
+     `constants-black` are literals — never repoint them *globally*. The one
+     exception is scoped: the tooltip rule redefines `constants-black` (and the
+     `content-inv-*` ink) **on `.c-tooltip__tip` itself**, because we replace
+     Slack's near-black bubble with a lifted surface and the inverse family then
+     describes a surface that is no longer there. Custom properties inherit, so
+     that one declaration re-inks the label and the shortcut keycaps without
+     naming any of Slack's hashed atomic classes.
    `--dt_color-plt-*` are raw palette primitives (~336 of them, triplet-consumed);
    they're brand scales, not semantic slots, so they're deliberately unmapped.
 4. **Inline-important overrides** — Slack sets its own high-specificity inline
@@ -411,6 +417,22 @@ and fully readable. Count `rgb(var(--x))` vs bare `var(--x)` to get the required
 format, and for a mystery color, list every rule declaring `color` that matches
 the element or an ancestor. `[...rule.style]` reveals declarations that were
 dropped at parse time.
+
+**Slack's CSS is readable with no login at all**, which beats both guessing and
+asking the user: `curl -sL https://app.slack.com/client` serves the signed-out
+boot HTML, whose `a.slack-edge.com` stylesheets include the whole design system —
+`modern.vendor.*.css` (the `c-` components: `.c-tooltip__tip`, `.c-keyboard_key`),
+`rollup-style-plastic.*.css` (every `--dt_color-*` literal, light block then dark)
+and `application.*.css` (the newer **atomic layer** — one hashed class per
+declaration, e.g. a class whose whole body is
+`background-color:var(--dt_color-constants-black)`). Grep those for the rule that
+paints an element and for a token's shipped value. Two things this settles that
+the running app hides: which *declaration* wins (a child's atomic class beats
+colour inherited from our rule on the parent), and that the atomic layer is
+token-driven — of its ~69 colour utilities only 6 hold literals, so an off-theme
+colour there can be traced to a token and fixed by redefining that token on an
+ancestor. The screenshot is still the input: sample the wrong pixel with
+`magick ... txt:` and match it against the token literals.
 
 The **native host and install.sh**, unlike the CSS, *are* testable headlessly —
 do that rather than asking the user to click through a browser. Both honor
