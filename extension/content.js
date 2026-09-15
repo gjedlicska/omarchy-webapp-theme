@@ -620,6 +620,36 @@ function applySlackTheme(theme, s) {
          light. */
       --background: ${mix(theme.bg, fg, 0.3)} !important;
       color: var(--omarchy-fg-strong) !important;
+      /* ...but the tip's own color only reaches text the tip itself holds. In
+         Slack's design system a tooltip is an INVERTED surface, and everything
+         drawn inside it inks from the inv- family. Those are not polarity-
+         flipped ink: --dt_color-content-inv-pry ships as #fff in light mode and
+         #f8f8f8 in dark, because Slack's bubble is near-black in BOTH. The
+         token block above points content-inv-pry at theme.bg, which is right
+         where the inverted fill is the accent or the fg (a primary button, a
+         highlighted menu row) and wrong here — and the newer tooltip renders
+         its label and its shortcut keys as CHILD elements carrying Slack's
+         atomic one-declaration classes (a hashed class whose whole body is
+         color: var(--dt_color-content-inv-pry)), which override what they would
+         otherwise inherit from the line above. Redefining the family LOCALLY on
+         the tip re-inks every descendant without naming one of those hashed
+         classes — the same property-inheritance reason --background alone
+         re-colours the bubble and its arrow together.
+         The shortcut keycaps need one more. Their fill is
+         --dt_color-constants-black, the literal we never repoint globally, and
+         Slack picked it because a black cap on a near-black bubble reads as a
+         subtle inset. On our lifted bubble it is a black hole, and fixing only
+         the ink would make it worse on a light theme: fg-strong is DARK there,
+         so dark ink would land on a still-black cap. Scoped to the tip the
+         remap is safe — nothing else painted "always black" (badges, modal
+         close buttons, video mattes) lives inside a tooltip — and it restores
+         Slack's relationship, a cap one step away from the bubble toward the
+         page. Across the 22 shipped themes cap ink lands 10.1:1 (everforest)
+         to 21:1, secondary ink 6.7:1 up, and the cap separates from the bubble
+         by 1.6-2.6:1. */
+      --dt_color-content-inv-pry: var(--omarchy-fg-strong) !important;
+      --dt_color-content-inv-sec: var(--omarchy-fg) !important;
+      --dt_color-constants-black: var(--omarchy-bg) !important;
       border-color: var(--omarchy-border) !important;
       /* Slack outlines the tip with filter: drop-shadow(0 0 1px
          var(--dt_color-otl-pry)), an unmapped #797c81 grey. A drop-shadow traces
