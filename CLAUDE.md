@@ -92,6 +92,14 @@ script.
     The direct re-stomp walk (rects + computed styles over the visible page) is
     throttled to 500ms; on a virtualized list it ran every frame and was the
     extension's entire CPU cost while scrolling.
+    **(4)** StyleX *dynamic* styles (the agent composer, popover surfaces)
+    bypass the slots entirely: the literal lands as an inline custom property
+    on the element (`style="--x-backgroundColor: lch(11.5% 7 283)"`) consumed
+    by an atomic class. A root-level remap cannot reach an inline declaration,
+    so `linearDirectPaintInlineVars` re-stomps surface-role `--x-*` literals
+    in place (`setProperty(..., "important")` on the element's own style), and
+    a `style`-attribute observer re-runs it after React rewrites the attribute.
+    Roles for `--x-*` names come from the same usage scan as `--sx-*`.
     **Requires Linear's interface theme set to "System preference"** (Ctrl+K →
     "Change interface theme"; per-device, client-DB-backed — with a pinned
     Light/Dark theme Linear renders hardcoded lch() styles no override can

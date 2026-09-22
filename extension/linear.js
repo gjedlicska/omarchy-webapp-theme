@@ -149,8 +149,8 @@ function linearSxRoles() {
     for (let i = 0; i < rule.style.length; i++) {
       const prop = rule.style[i];
       const v = rule.style.getPropertyValue(prop);
-      if (!v || !v.includes("--sx-")) continue;
-      const refs = v.match(/--sx-[A-Za-z0-9-]+/g) || [];
+      if (!v || !/--s?x-/.test(v)) continue;
+      const refs = v.match(/--s?x-[A-Za-z0-9-]+/g) || [];
       if (prop.startsWith("--")) {
         for (const n of refs) aliasEdges.push([prop, n]);
         continue;
@@ -248,6 +248,7 @@ function linearSxRemaps(s) {
   if (varsSheet) varsSheet.disabled = false;
 
   const roles = linearSxRoles();
+  linearLastRoles = roles;
   const borderNormal = s.borderColor;
   const borderStrong = withAlpha(s.fg, s.isDark ? 0.16 : 0.14);
   for (const prop of names) {
@@ -319,6 +320,80 @@ html body [data-restore-scroll-view="pull-request-code-view"] {
 `.replace(/\s+/g, " ");
 }
 
+// Which omarchy surface a painted Linear grey becomes, or null when it is not
+// a plausible chrome grey for the current mode. Direct paint only touches
+// backgrounds — surface buckets, never text.
+function linearStompBucket(rgb, s, elev) {
+  const level = linearGreyLevel(rgb);
+  if (s.isDark) {
+    if (level < 0.035 || level > 0.28) return null;
+    if (level < 0.1) return elev.bgPrimary;
+    if (level < 0.13) return elev.bgSecondary;
+    if (level < 0.16) return elev.bgTertiary;
+    return elev.bgQuaternary;
+  }
+  if (level <= 0.32) {
+    if (level < 0.08) return elev.bgPrimary;
+    if (level < 0.14) return elev.bgSecondary;
+    if (level < 0.2) return elev.bgTertiary;
+    return elev.bgQuaternary;
+  }
+  if (level >= 0.86 && level < 0.965) {
+    if (level > 0.94) return elev.bgPrimary;
+    if (level > 0.91) return elev.bgSecondary;
+    if (level > 0.88) return elev.bgTertiary;
+    return elev.bgQuaternary;
+  }
+  return null;
+}
+
+function linearIsOurSurface(rgb, elev) {
+  for (const c of Object.values(elev)) {
+    const o = hexToRgb(c);
+    if (
+      o &&
+      Math.abs(o.r - rgb.r) <= 3 &&
+      Math.abs(o.g - rgb.g) <= 3 &&
+      Math.abs(o.b - rgb.b) <= 3
+    )
+      return true;
+  }
+  return false;
+}
+
+// StyleX DYNAMIC styles (the agent composer, popover surfaces) bypass the
+// --sx-* slots: the literal lands as an inline custom property on the element
+// itself — style="--x-backgroundColor: lch(11.5% 7 283)" — consumed by an
+// atomic class (`.sx-… { background-color: var(--x-backgroundColor) }`). A
+// root-level remap cannot reach an inline declaration, so re-stomp the
+// declaration in place. Only surface-role names (per the same usage scan that
+// classifies the slots — the consumer is `background-color`) with a literal
+// neutral grey are touched; icon/fill colors stay Linear's. No layout reads:
+// ~0.5ms for the whole page.
+let linearLastRoles = null;
+function linearDirectPaintInlineVars(s) {
+  if (!document.body || !linearLastRoles) return;
+  const elev = linearElevation(s);
+  const paints = [];
+  for (const el of document.body.querySelectorAll("[style*='--x-']")) {
+    for (const prop of el.style) {
+      if (!prop.startsWith("--x-")) continue;
+      const role = linearLastRoles[prop];
+      if (!role || !role.surface || role.surface <= 3 * (role.text || 0)) continue;
+      const value = el.style.getPropertyValue(prop).trim();
+      if (!value || value.includes("var(")) continue;
+      const rgb = hexToRgb(value);
+      if (!rgb || (rgb.a !== undefined && rgb.a < 0.5)) continue;
+      if (!linearIsNeutralRgb(rgb) || linearIsOurSurface(rgb, elev)) continue;
+      const bucket = linearStompBucket(rgb, s, elev);
+      if (bucket) paints.push([el, prop, bucket]);
+    }
+  }
+  for (const [el, prop, bucket] of paints) {
+    el.style.setProperty(prop, bucket, "important");
+  }
+}
+
 // Styled-components / StyleX sometimes set background as a literal lch() or
 // hex on the element. Walk large visible nodes and restomp neutrals that still
 // match Linear greys. Also clear stale inline paints from the opposite mode.
@@ -329,17 +404,6 @@ html body [data-restore-scroll-view="pull-request-code-view"] {
 function linearDirectPaintSurfaces(s) {
   if (!document.body) return;
   const elev = linearElevation(s);
-  const our = Object.values(elev)
-    .map((c) => hexToRgb(c))
-    .filter(Boolean);
-
-  const isAlreadyOurs = (rgb) =>
-    our.some(
-      (o) =>
-        Math.abs(o.r - rgb.r) <= 3 &&
-        Math.abs(o.g - rgb.g) <= 3 &&
-        Math.abs(o.b - rgb.b) <= 3
-    );
 
   const nodes = document.body.querySelectorAll(
     "main, header, [data-scroll-container], [class*='section-to-print'], [data-restore-scroll-view]"
@@ -367,35 +431,15 @@ function linearDirectPaintSurfaces(s) {
     if (!rgb) continue;
 
     // Drop inline paint we applied under the opposite mode (wrong contrast).
-    if (el.dataset.omarchyLinearPaint === "1" && !isAlreadyOurs(rgb)) {
+    if (el.dataset.omarchyLinearPaint === "1" && !linearIsOurSurface(rgb, elev)) {
       clears.push(el);
     }
 
     // A see-through wrapper is not a grey surface, whatever its rgb says.
     if (bg === "rgba(0, 0, 0, 0)" || (rgb.a !== undefined && rgb.a < 0.5)) continue;
     if (!linearIsNeutralRgb(rgb)) continue;
-    if (isAlreadyOurs(rgb)) continue;
-    // Direct paint only touches backgrounds — use surface buckets, not text.
-    const level = linearGreyLevel(rgb);
-    let bucket = null;
-    if (s.isDark) {
-      if (level >= 0.035 && level <= 0.28) {
-        if (level < 0.1) bucket = elev.bgPrimary;
-        else if (level < 0.13) bucket = elev.bgSecondary;
-        else if (level < 0.16) bucket = elev.bgTertiary;
-        else bucket = elev.bgQuaternary;
-      }
-    } else if (level <= 0.32) {
-      if (level < 0.08) bucket = elev.bgPrimary;
-      else if (level < 0.14) bucket = elev.bgSecondary;
-      else if (level < 0.2) bucket = elev.bgTertiary;
-      else bucket = elev.bgQuaternary;
-    } else if (level >= 0.86 && level < 0.965) {
-      if (level > 0.94) bucket = elev.bgPrimary;
-      else if (level > 0.91) bucket = elev.bgSecondary;
-      else if (level > 0.88) bucket = elev.bgTertiary;
-      else bucket = elev.bgQuaternary;
-    }
+    if (linearIsOurSurface(rgb, elev)) continue;
+    const bucket = linearStompBucket(rgb, s, elev);
     if (bucket) paints.push([el, bucket]);
   }
 
@@ -504,6 +548,7 @@ function linearPaintChrome(s) {
 
 // The expensive half: rect + computed-style walks over the visible page.
 function linearPaintDirect(s) {
+  linearDirectPaintInlineVars(s);
   linearDirectPaintSurfaces(s);
   linearDirectPaintText(s);
 }
@@ -598,6 +643,15 @@ function linearArmSxWatch() {
     attributes: true,
     attributeFilter: ["class"],
     childList: true,
+    subtree: true,
+  });
+
+  // Inline --x-* literals are rewritten by React on re-render (a style
+  // attribute change, not a node insertion). Our own setProperty lands here
+  // too: the follow-up pass finds nothing to change and the chain stops.
+  new MutationObserver(kickDirect).observe(document.body || document.documentElement, {
+    attributes: true,
+    attributeFilter: ["style"],
     subtree: true,
   });
 
