@@ -319,6 +319,26 @@ function applySlackTheme(theme, s) {
       color: var(--omarchy-fg) !important;
     }
 
+    /* ===== theme backdrop ("sunroof") ===== */
+    /* Slack's sidebar theme paints a 100vw x 100vh absolute layer,
+       .p-theme_background--sunroof, with an inline gradient built from the
+       theme's own (aubergine) palette. Focused it is masked to 40% at the top
+       fading to 95% by 200px; body.p-window--blurred remasks it to a flat 73%
+       and dims it 10%, and that mask swap is what showed as a purple cast along
+       the rail and top edge the moment the window lost focus. Every element
+       over it computes our brown, so a computed-style probe never finds the
+       culprit; only a pixel sample does (rail #2c2525 focused, #38202a blurred).
+       The gradient is an inline background-image, which our stylesheet
+       !important still outranks. Paint the layer flat theme bg, and drop the
+       mask/filter so focus changes no longer alter it. The huddle mini-player
+       backdrop is left alone; it is scoped to its own tile. */
+    html body .p-theme_background:not(.p-theme_background--huddle-mini) {
+      background-color: var(--omarchy-bg) !important;
+      background-image: none !important;
+      mask: none !important;
+      filter: none !important;
+    }
+
     /* Defensive: stop transparency leaking into dialog/menu chrome from our
        variable overrides. Just sets an opaque background — interior styling
        is left to Slack's color mode (which we now auto-flip reliably). */

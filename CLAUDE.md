@@ -420,6 +420,17 @@ and drive `ctx.pages()` / `ctx.serviceWorkers()`. Gotchas, all learned the hard 
 - **Screenshots hang** when the window is occluded (no frames are composited);
   `fromSurface: false` doesn't help. Assert on `getComputedStyle` instead — it's
   more precise than a screenshot anyway.
+- **`getComputedStyle` cannot see through translucency.** Slack's blur state
+  sets `opacity: .66` on `.p-tab_rail`, and what showed through was the
+  100vw x 100vh `.p-theme_background` layer behind it (an aubergine
+  radial+conic gradient). Every element under the cursor computed our brown, so
+  three DOM probes came back clean. When the pixels disagree with the DOM,
+  sample the compositor instead: `grim -g "<x>,<y> <w>x<h>" f.png` then
+  `magick f.png -crop 1x1+<x>+<y> -depth 8 txt:-`, focused vs unfocused (switch
+  focus with `hyprctl eval "hl.dispatch(hl.dsp.focus({ window = 'address:0x…' }))"`).
+  A colour that shifts hue on blur is the page; one that only darkens is
+  Hyprland's inactive opacity. Then walk `elementFromPoint(...).parentElement`
+  reporting `opacity`/`backgroundImage`/`filter`/`mask` per ancestor.
 
 To audit how a site consumes a design token (the thing that makes token bugs
 diagnosable), walk the CSSOM in the page — Slack's stylesheets are same-origin
