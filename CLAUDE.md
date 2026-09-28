@@ -218,9 +218,14 @@ script.
     accent. The distance scan is explicit because `highlightColor()` avoids only
     ONE colour and kept handing back the colour already used for `negative`.
   - `background.js` — MV3 service worker. Holds the native-messaging port,
-    rebroadcasts pushed themes to matched tabs (the site list is derived from
-    the manifest's content-script matches — adding a pack never touches this
-    file), answers `request-fresh-theme`.
+    rebroadcasts pushed themes to **every tab** (not a URL-filtered
+    `tabs.query`: Slack's huddle pop-out is an `about:blank` child whose
+    `replaceState`'d URL the tabs API never sees, so a filtered query skipped
+    it and a theme change left the live call on the old theme; receiver-less
+    tabs just reject), answers `request-fresh-theme`. The `onUpdated` re-push
+    still filters by host (derived from the manifest's content-script matches —
+    adding a pack never touches this file); a fresh pop-out gets its theme via
+    `request-theme` at load instead.
   - `inject-prefers-color-scheme.js` — runs in the page's MAIN world at
     `document_start`; a near-complete `matchMedia('(prefers-color-scheme)')`
     polyfill so Slack's "Sync with OS" appearance follows omarchy, plus the
