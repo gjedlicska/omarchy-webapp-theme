@@ -403,13 +403,18 @@ removes the need entirely. Consequences to preserve when editing:
 8. **Huddles** need almost no selectors — the chrome paints from the theme
    family above. What's left: the `.p-theme_background` backdrop (pop-out
    window, mini tile) goes flat with the sunroof rule; the video-tile backdrop is
-   an `<img>` of Slack's `/img/huddles/gradient_NN.png`, hidden by **src
-   substring** because the same class carries a user-chosen artist photo, which
-   stays; and two chrome buttons Slack paints as literal white pills
-   (`constants-white` / `brand-core-black`) get those tokens redefined on the
-   button itself, the tooltip precedent. Overlays that are white-on-video
-   (active-speaker pill, pin pill, tile actions) are left alone: legibility, not
-   theme. Slack's "Leave" red and the in-huddle green stay semantic.
+   an `<img>` from Slack's stock library under `/img/huddles/` — gradient swirls
+   *and* artist scenes, one picked per huddle — hidden by **src substring** on
+   the directory, so a custom upload (another origin) stays; and two chrome
+   buttons Slack paints as literal white pills (`constants-white` /
+   `brand-core-black`) get those tokens redefined on the button itself, the
+   tooltip precedent. The per-tile **name pill** is the inverse case: it reads
+   `content-inv-pry` for ink on an *unmapped* `base-inv-pry` near-black pill, so
+   the global `content-inv-pry → bg` mapping made it dark-on-dark; the pill gets
+   Slack's own light ink back locally (`rgb(var(--dt_color-plt-gray-100))`).
+   Other white-on-video overlays (active-speaker pill, pin pill, tile actions)
+   are left alone: legibility, not theme. Slack's "Leave" red and the in-huddle
+   green stay semantic.
 
 ## How the CSS rules are written (important conventions)
 
